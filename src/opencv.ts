@@ -16,9 +16,14 @@ function isReady(cv: Partial<CvNamespace> | undefined): cv is CvNamespace {
 
 let loadPromise: Promise<CvNamespace> | null = null;
 
+// Opaque dynamic import keeps the @opencvjs/node specifier out of the static
+// import graph, so browser bundlers (Vite, webpack, esbuild, rollup) won't
+// try to bundle the Node WASM blob into a browser build.
+const dynamicImport = new Function('s', 'return import(s)') as <T>(s: string) => Promise<T>;
+
 export async function loadOpenCvNode(): Promise<CvNamespace> {
-  const mod = await import('@opencvjs/node');
-  const loadOpenCV = (mod as { loadOpenCV?: () => Promise<CvNamespace> }).loadOpenCV;
+  const mod = await dynamicImport<{ loadOpenCV?: () => Promise<CvNamespace> }>('@opencvjs/node');
+  const loadOpenCV = mod.loadOpenCV;
   if (typeof loadOpenCV !== 'function') {
     throw new Error('Failed to load @opencvjs/node runtime.');
   }

@@ -1,7 +1,7 @@
 {
   "name": "proper-pixel-art-ts",
   "author": "Tuan Nguyen <tuanna1601@gmail.com>",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "TypeScript port of KennethJAllen/proper-pixel-art for browser and worker runtimes.",
   "license": "MIT",
   "repository": {
@@ -11,15 +11,17 @@
   "type": "module",
   "main": "./dist/index.js",
   "module": "./dist/index.js",
-  "browser": "./dist/browser.js",
   "types": "./dist/index.d.ts",
   "sideEffects": false,
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
-      "browser": "./dist/browser.js",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./browser": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/browser.js"
     }
   },
   "engines": {
@@ -46,8 +48,10 @@
     "typescript"
   ],
   "dependencies": {
-    "@opencvjs/node": "^4.13.0-release.1",
     "image-q": "^4.0.0"
+  },
+  "optionalDependencies": {
+    "@opencvjs/node": "^4.13.0-release.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",

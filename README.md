@@ -50,4 +50,9 @@ const result = await pixelate(inputImageData, {
 });
 ```
 
-In Node, `loadOpenCv()` falls back to `loadOpenCvNode()`, which compiles the WASM runtime via `@opencvjs/node`. In browsers, it injects the OpenCV.js script tag (default `https://docs.opencv.org/4.x/opencv.js`) and waits for `onRuntimeInitialized`.
+In Node, `loadOpenCv()` falls back to `loadOpenCvNode()`, which compiles the WASM runtime via `@opencvjs/node` (listed as an optional dependency — install it only if you need the Node loader). In browsers, it injects the OpenCV.js script tag (default `https://docs.opencv.org/4.x/opencv.js`) and waits for `onRuntimeInitialized`.
+
+## Entry points
+
+- `proper-pixel-art-ts` → `dist/index.js`. The ESM source you want bundlers (Vite, webpack, esbuild, rollup) to resolve. `@opencvjs/node` is loaded via an opaque dynamic import, so browser bundles never pull in its WASM blob.
+- `proper-pixel-art-ts/browser` → `dist/browser.js`. A prebundled, dependency-inlined ESM (~120 KB) for direct `<script type="module">` use without a bundler.
