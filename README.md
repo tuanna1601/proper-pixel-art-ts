@@ -50,4 +50,4 @@ const result = await pixelate(inputImageData, {
 });
 ```
 
-In Node, `loadOpenCv()` falls back to `@techstark/opencv-js`. In browser, it loads the script runtime.
+In Node, `loadOpenCv()` falls back to `loadOpenCvNode()`, which compiles the WASM runtime via `@opencvjs/node`. In browsers, it injects the OpenCV.js script tag (default `https://docs.opencv.org/4.x/opencv.js`) and waits for `onRuntimeInitialized`.
