@@ -1,0 +1,52 @@
+{
+  "name": "proper-pixel-art-ts",
+  "author": "Tuan Nguyen <tuanna1601@gmail.com>",
+  "version": "0.0.1",
+  "description": "TypeScript port of KennethJAllen/proper-pixel-art for browser and worker runtimes.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/tuanna1601/proper-pixel-art-ts.git"
+  },
+  "type": "module",
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json && bun build ./src/index.ts --outfile ./dist/browser.js --target browser --format esm",
+    "test:node-import": "bun run build && node ./scripts/node-smoke.mjs",
+    "test:unit": "vitest run",
+    "test:parity": "bun run build && playwright test",
+    "test:parity-node": "bun run build && node ./scripts/node-parity.mjs",
+    "test": "bun run test:unit && bun run test:node-import"
+  },
+  "keywords": [
+    "pixel-art",
+    "opencv",
+    "image-processing",
+    "typescript"
+  ],
+  "dependencies": {
+    "@opencvjs/node": "^4.13.0-release.1",
+    "image-q": "^4.0.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1",
+    "@techstark/opencv-js": "^4.12.0-release.1",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.4"
+  }
+}
