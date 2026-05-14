@@ -9,7 +9,7 @@ import {
 } from './colors.js';
 import { computeMeshWithScaling } from './mesh.js';
 import type { Mesh, PixelateOptions, ImageDataLike } from './types.js';
-import { createCanvas, get2DContext, scaleImageNearest } from './utils.js';
+import { scaleImageNearest } from './utils.js';
 
 function extractCellRgb(image: ImageDataLike, x0: number, y0: number, x1: number, y1: number): Uint8ClampedArray {
   const values = new Uint8ClampedArray((x1 - x0) * (y1 - y0) * 3);
@@ -107,7 +107,7 @@ export async function pixelate(image: ImageDataLike, options: PixelateOptions): 
   const skipQuantization = numColors === undefined;
   let processed = imageRgba;
   if (!skipQuantization) {
-    const quantizeImage = options.quantizeImage ?? paletteImage;
+    const quantizeImage = options.quantizeImage ?? ((img, n) => paletteImage(img, n));
     processed = await quantizeImage(imageRgba, numColors);
   }
 
@@ -124,10 +124,4 @@ export async function pixelate(image: ImageDataLike, options: PixelateOptions): 
   }
 
   return result;
-}
-
-export function imageDataToCanvas(image: ImageDataLike): HTMLCanvasElement | OffscreenCanvas {
-  const canvas = createCanvas(image.width, image.height);
-  get2DContext(canvas).putImageData(image as ImageData, 0, 0);
-  return canvas;
 }

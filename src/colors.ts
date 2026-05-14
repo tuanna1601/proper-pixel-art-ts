@@ -4,6 +4,39 @@ import type { RGB, RGBA, ImageDataLike } from './types.js';
 
 export const ALPHA_THRESHOLD = 128;
 
+function medianValue(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) {
+    return sorted[middle]!;
+  }
+  return (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+function downscaleForColorStats(image: ImageDataLike, maxSize = 160): ImageDataLike {
+  if (image.width <= maxSize && image.height <= maxSize) {
+    return image;
+  }
+  const scale = Math.min(maxSize / image.width, maxSize / image.height);
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+  const out = new Uint8ClampedArray(width * height * 4);
+  for (let y = 0; y < height; y++) {
+    const srcY = Math.min(image.height - 1, Math.round((y / height) * image.height));
+    for (let x = 0; x < width; x++) {
+      const srcX = Math.min(image.width - 1, Math.round((x / width) * image.width));
+      const srcIndex = (srcY * image.width + srcX) * 4;
+      const dstIndex = (y * width + x) * 4;
+      out[dstIndex] = image.data[srcIndex]!;
+      out[dstIndex + 1] = image.data[srcIndex + 1]!;
+      out[dstIndex + 2] = image.data[srcIndex + 2]!;
+      out[dstIndex + 3] = image.data[srcIndex + 3]!;
+    }
+  }
+  return createImageData(out, width, height);
+}
+
 function isMajorityTransparent(opaqueCount: number, totalCount: number): boolean {
   return opaqueCount <= totalCount / 2;
 }
@@ -16,10 +49,11 @@ function rgbDistanceSquared(a: RGB, b: RGB): number {
 }
 
 export function topOpaqueColors(image: ImageDataLike, limit = 8): RGB[] {
+  const sampled = downscaleForColorStats(image, 160);
   const counts = new Map<number, number>();
-  for (let i = 0; i < image.data.length; i += 4) {
-    if (image.data[i + 3] < ALPHA_THRESHOLD) continue;
-    const key = (image.data[i]! << 16) | (image.data[i + 1]! << 8) | image.data[i + 2]!;
+  for (let i = 0; i < sampled.data.length; i += 4) {
+    if (sampled.data[i + 3] < ALPHA_THRESHOLD) continue;
+    const key = (sampled.data[i]! << 16) | (sampled.data[i + 1]! << 8) | sampled.data[i + 2]!;
     counts.set(key, (counts.get(key) ?? 0) + 1);
   }
   return Array.from(counts.entries())
@@ -145,15 +179,15 @@ function dominantRgbByBinning(rgbPixels: Uint8ClampedArray): RGB {
     const pickMedian = (channel: number) => {
       const values: number[] = [];
       for (let i = channel; i < rgbPixels.length; i += 3) values.push(rgbPixels[i]!);
-      values.sort((a, b) => a - b);
-      return values[Math.floor(values.length / 2)] ?? 0;
+      return Math.trunc(medianValue(values));
     };
     return [pickMedian(0), pickMedian(1), pickMedian(2)];
   }
 
   const binSize = 52;
-  const counts1 = new Uint16Array(125);
-  const counts2 = new Uint16Array(125);
+  const offset = Math.floor(binSize / 2);
+  const counts1 = new Uint32Array(125);
+  const counts2 = new Uint32Array(125);
   const bins1 = new Uint16Array(count);
   const bins2 = new Uint16Array(count);
 
@@ -162,10 +196,13 @@ function dominantRgbByBinning(rgbPixels: Uint8ClampedArray): RGB {
     const g = rgbPixels[p * 3 + 1]!;
     const b = rgbPixels[p * 3 + 2]!;
     const index1 = Math.floor(r / binSize) * 25 + Math.floor(g / binSize) * 5 + Math.floor(b / binSize);
+    const r2 = Math.min(r + offset, 255);
+    const g2 = Math.min(g + offset, 255);
+    const b2 = Math.min(b + offset, 255);
     const index2 =
-      Math.floor(Math.min(r + binSize / 2, 255) / binSize) * 25 +
-      Math.floor(Math.min(g + binSize / 2, 255) / binSize) * 5 +
-      Math.floor(Math.min(b + binSize / 2, 255) / binSize);
+      Math.floor(r2 / binSize) * 25 +
+      Math.floor(g2 / binSize) * 5 +
+      Math.floor(b2 / binSize);
     bins1[p] = index1;
     bins2[p] = index2;
     counts1[index1] += 1;
@@ -191,10 +228,7 @@ function dominantRgbByBinning(rgbPixels: Uint8ClampedArray): RGB {
     channels[2].push(rgbPixels[p * 3 + 2]!);
   }
 
-  const median = (values: number[]) => {
-    values.sort((a, b) => a - b);
-    return values[Math.floor(values.length / 2)] ?? 0;
-  };
+  const median = (values: number[]) => Math.trunc(medianValue(values));
 
   return [median(channels[0]), median(channels[1]), median(channels[2])];
 }
@@ -240,6 +274,138 @@ export async function paletteImage(
   });
   const bytes = out.toUint8Array();
   return createImageData(new Uint8ClampedArray(bytes), out.getWidth(), out.getHeight());
+}
+
+type UniquePixel = {
+  b: number;
+  g: number;
+  key: number;
+  nearestDistance: number;
+  r: number;
+};
+
+function distanceSq(a: RGB, b: RGB): number {
+  const dr = a[0] - b[0];
+  const dg = a[1] - b[1];
+  const db = a[2] - b[2];
+  return dr * dr + dg * dg + db * db;
+}
+
+function buildUniquePixels(image: ImageDataLike, sortMode: 'scan' | 'rgb' = 'rgb'): { pixels: UniquePixel[]; mean: RGB } {
+  const unique = new Map<number, UniquePixel>();
+  let sumR = 0;
+  let sumG = 0;
+  let sumB = 0;
+  const totalPixels = image.width * image.height;
+
+  for (let i = 0; i < image.data.length; i += 4) {
+    const r = image.data[i]!;
+    const g = image.data[i + 1]!;
+    const b = image.data[i + 2]!;
+    const key = (r << 16) | (g << 8) | b;
+    if (!unique.has(key)) {
+      unique.set(key, { key, r, g, b, nearestDistance: Number.POSITIVE_INFINITY });
+    }
+    sumR += r;
+    sumG += g;
+    sumB += b;
+  }
+
+  const mean: RGB = [
+    Math.floor(0.5 + sumR / totalPixels),
+    Math.floor(0.5 + sumG / totalPixels),
+    Math.floor(0.5 + sumB / totalPixels),
+  ];
+  let pixels = Array.from(unique.values());
+  if (sortMode === 'rgb') {
+    pixels.sort((a, b) => a.r - b.r || a.g - b.g || a.b - b.b);
+  }
+  return { pixels, mean };
+}
+
+function hasTransparentPixels(image: ImageDataLike): boolean {
+  for (let i = 3; i < image.data.length; i += 4) {
+    if (image.data[i]! < ALPHA_THRESHOLD) return true;
+  }
+  return false;
+}
+
+function chooseMaxCoveragePalette(uniquePixels: UniquePixel[], count: number, mean: RGB, seedPalette: RGB[] = []): RGB[] {
+  if (uniquePixels.length === 0) return [];
+  const palette: RGB[] = [...seedPalette];
+  let currentCenter = seedPalette.length > 0 ? seedPalette[seedPalette.length - 1]! : mean;
+
+  for (const seed of seedPalette) {
+    for (const pixel of uniquePixels) {
+      const nextDistance = distanceSq([pixel.r, pixel.g, pixel.b], seed);
+      if (nextDistance < pixel.nearestDistance) {
+        pixel.nearestDistance = nextDistance;
+      }
+    }
+  }
+
+  for (let paletteIndex = seedPalette.length; paletteIndex < count && paletteIndex < uniquePixels.length; paletteIndex++) {
+    let furthest: UniquePixel | null = null;
+    let furthestDistance = -1;
+    const forceReplace = paletteIndex === 1 && seedPalette.length === 0;
+
+    for (const pixel of uniquePixels) {
+      const nextDistance = distanceSq([pixel.r, pixel.g, pixel.b], currentCenter);
+      if (forceReplace || nextDistance < pixel.nearestDistance) {
+        pixel.nearestDistance = nextDistance;
+      }
+      if (
+        pixel.nearestDistance > furthestDistance ||
+        (pixel.nearestDistance === furthestDistance && furthest && pixel.key < furthest.key)
+      ) {
+        furthestDistance = pixel.nearestDistance;
+        furthest = pixel;
+      }
+    }
+
+    if (!furthest) break;
+    currentCenter = [furthest.r, furthest.g, furthest.b];
+    palette.push(currentCenter);
+  }
+
+  return palette;
+}
+
+export function paletteImageMaxCoverage(image: ImageDataLike, numColors = 16): ImageDataLike {
+  return paletteImageMaxCoverageWithOptions(image, numColors, false);
+}
+
+export function paletteImageMaxCoverageWithOptions(
+  image: ImageDataLike,
+  numColors = 16,
+  seedTransparentBackground = false
+): ImageDataLike {
+  const imageRgb = clampAlpha(image, 'rgba');
+  const { pixels, mean } = buildUniquePixels(imageRgb, seedTransparentBackground ? 'scan' : 'rgb');
+  const seedPalette = seedTransparentBackground && hasTransparentPixels(image)
+    ? [pickBackgroundColor(topOpaqueColors(image))]
+    : [];
+  const palette = chooseMaxCoveragePalette(pixels, numColors, mean, seedPalette);
+  const out = new Uint8ClampedArray(imageRgb.data);
+
+  for (let i = 0; i < out.length; i += 4) {
+    let best = palette[0]!;
+    let bestDistance = distanceSq([out[i]!, out[i + 1]!, out[i + 2]!], best);
+    for (let p = 1; p < palette.length; p++) {
+      const color = palette[p]!;
+      const d = distanceSq([out[i]!, out[i + 1]!, out[i + 2]!], color);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = color;
+      }
+    }
+    out[i] = best[0];
+    out[i + 1] = best[1];
+    out[i + 2] = best[2];
+    out[i + 3] = 255;
+  }
+
+  return createImageData(out, imageRgb.width, imageRgb.height);
 }
 
 export function mostCommonBoundaryColor(image: ImageDataLike): RGB {

@@ -2,6 +2,24 @@ import { clampAlpha } from './colors.js';
 import type { CvMat, CvNamespace, Lines, Mesh, ImageDataLike } from './types.js';
 import { cropBorder, scaleImageNearest } from './utils.js';
 
+function medianValue(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 1) {
+    return sorted[middle]!;
+  }
+  return (sorted[middle - 1]! + sorted[middle]!) / 2;
+}
+
+function numpyRound(value: number): number {
+  const lower = Math.floor(value);
+  const diff = value - lower;
+  if (diff < 0.5) return lower;
+  if (diff > 0.5) return lower + 1;
+  return lower % 2 === 0 ? lower : lower + 1;
+}
+
 export function clusterLines(lines: Lines, threshold = 4): Lines {
   if (lines.length === 0) return [];
   const sorted = [...lines].sort((a, b) => a - b);
@@ -15,8 +33,7 @@ export function clusterLines(lines: Lines, threshold = 4): Lines {
     }
   }
   return clusters.map(cluster => {
-    const sortedCluster = [...cluster].sort((a, b) => a - b);
-    return sortedCluster[Math.floor(sortedCluster.length / 2)]!;
+    return Math.trunc(medianValue(cluster));
   });
 }
 
@@ -93,24 +110,33 @@ export function detectGridLines(
   }
 }
 
+function numpyPercentile(sortedAsc: number[], percent: number): number {
+  if (sortedAsc.length === 0) return 0;
+  if (sortedAsc.length === 1) return sortedAsc[0]!;
+  const rank = (percent / 100) * (sortedAsc.length - 1);
+  const lower = Math.floor(rank);
+  const upper = Math.ceil(rank);
+  if (lower === upper) return sortedAsc[lower]!;
+  const fraction = rank - lower;
+  return sortedAsc[lower]! * (1 - fraction) + sortedAsc[upper]! * fraction;
+}
+
 export function getPixelWidth(lineCollection: Lines[], trimOutlierFraction = 0.2): number {
-  const gaps = lineCollection.flatMap(lines => {
-    const values: number[] = [];
+  const allGaps: number[] = [];
+  for (const lines of lineCollection) {
     for (let i = 1; i < lines.length; i++) {
-      const gap = lines[i]! - lines[i - 1]!;
-      if (gap > 0) values.push(gap);
+      allGaps.push(lines[i]! - lines[i - 1]!);
     }
-    return values;
-  });
+  }
+  if (allGaps.length === 0) return 1;
 
-  if (gaps.length === 0) return 1;
+  const sorted = [...allGaps].sort((a, b) => a - b);
+  const low = numpyPercentile(sorted, 100 * trimOutlierFraction);
+  const hi = numpyPercentile(sorted, 100 * (1 - trimOutlierFraction));
+  let middle = allGaps.filter(g => g >= low && g <= hi);
+  if (middle.length === 0) middle = allGaps;
 
-  const sorted = [...gaps].sort((a, b) => a - b);
-  const lowIndex = Math.floor(sorted.length * trimOutlierFraction);
-  const highIndex = Math.max(lowIndex + 1, Math.ceil(sorted.length * (1 - trimOutlierFraction)));
-  const middle = sorted.slice(lowIndex, highIndex);
-  const source = middle.length > 0 ? middle : sorted;
-  return Math.max(1, Math.round(source[Math.floor(source.length / 2)]!));
+  return Math.max(1, numpyRound(medianValue(middle)));
 }
 
 export function homogenizeLines(lines: Lines, pixelWidth: number): Lines {
@@ -120,7 +146,7 @@ export function homogenizeLines(lines: Lines, pixelWidth: number): Lines {
     const start = lines[index]!;
     const end = lines[index + 1]!;
     const sectionWidth = end - start;
-    const numPixels = Math.round(sectionWidth / pixelWidth);
+    const numPixels = numpyRound(sectionWidth / pixelWidth);
     const sectionPixelWidth = numPixels === 0 ? 0 : sectionWidth / numPixels;
     for (let n = 0; n < numPixels; n++) {
       complete.push(start + Math.trunc(n * sectionPixelWidth));
@@ -187,7 +213,7 @@ export function computeMeshWithScaling(
   pixelWidth?: number
 ): { mesh: Mesh; upscaleFactor: number } {
   const scaled = scaleImageNearest(image, upscaleFactor);
-  const scaledMesh = computeMesh(cv, scaled, [50, 200], 8, pixelWidth ? pixelWidth * upscaleFactor : undefined);
+  const scaledMesh = computeMesh(cv, scaled, [50, 200], 8, pixelWidth);
   if (!isTrivialMesh(scaledMesh)) {
     return { mesh: scaledMesh, upscaleFactor };
   }
