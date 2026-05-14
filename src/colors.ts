@@ -1,5 +1,5 @@
-import { applyPalette, buildPalette, utils } from 'image-q';
 import { createImageData } from './imagedata.js';
+import { thumbnailLike } from './resample.js';
 import type { RGB, RGBA, ImageDataLike } from './types.js';
 
 export const ALPHA_THRESHOLD = 128;
@@ -15,26 +15,7 @@ function medianValue(values: number[]): number {
 }
 
 function downscaleForColorStats(image: ImageDataLike, maxSize = 160): ImageDataLike {
-  if (image.width <= maxSize && image.height <= maxSize) {
-    return image;
-  }
-  const scale = Math.min(maxSize / image.width, maxSize / image.height);
-  const width = Math.max(1, Math.round(image.width * scale));
-  const height = Math.max(1, Math.round(image.height * scale));
-  const out = new Uint8ClampedArray(width * height * 4);
-  for (let y = 0; y < height; y++) {
-    const srcY = Math.min(image.height - 1, Math.round((y / height) * image.height));
-    for (let x = 0; x < width; x++) {
-      const srcX = Math.min(image.width - 1, Math.round((x / width) * image.width));
-      const srcIndex = (srcY * image.width + srcX) * 4;
-      const dstIndex = (y * width + x) * 4;
-      out[dstIndex] = image.data[srcIndex]!;
-      out[dstIndex + 1] = image.data[srcIndex + 1]!;
-      out[dstIndex + 2] = image.data[srcIndex + 2]!;
-      out[dstIndex + 3] = image.data[srcIndex + 3]!;
-    }
-  }
-  return createImageData(out, width, height);
+  return thumbnailLike(image, maxSize, 2.0);
 }
 
 function isMajorityTransparent(opaqueCount: number, totalCount: number): boolean {
@@ -256,24 +237,8 @@ export function getCellColorSkipQuantization(
   return [r, g, b, 255];
 }
 
-export async function paletteImage(
-  image: ImageDataLike,
-  numColors = 16,
-  paletteQuantization: 'wuquant' | 'neuquant' | 'rgbquant' = 'wuquant'
-): Promise<ImageDataLike> {
-  const imageRgb = clampAlpha(image, 'rgba');
-  const pointContainer = utils.PointContainer.fromImageData(imageRgb as ImageData);
-  const palette = await buildPalette([pointContainer], {
-    colors: numColors,
-    paletteQuantization,
-    colorDistanceFormula: 'euclidean-bt709-noalpha',
-  });
-  const out = await applyPalette(pointContainer, palette, {
-    imageQuantization: 'nearest',
-    colorDistanceFormula: 'euclidean-bt709-noalpha',
-  });
-  const bytes = out.toUint8Array();
-  return createImageData(new Uint8ClampedArray(bytes), out.getWidth(), out.getHeight());
+export async function paletteImage(image: ImageDataLike, numColors = 16): Promise<ImageDataLike> {
+  return paletteImageMaxCoverage(image, numColors);
 }
 
 type UniquePixel = {
@@ -291,7 +256,7 @@ function distanceSq(a: RGB, b: RGB): number {
   return dr * dr + dg * dg + db * db;
 }
 
-function buildUniquePixels(image: ImageDataLike, sortMode: 'scan' | 'rgb' = 'rgb'): { pixels: UniquePixel[]; mean: RGB } {
+function buildUniquePixels(image: ImageDataLike): { pixels: UniquePixel[]; mean: RGB } {
   const unique = new Map<number, UniquePixel>();
   let sumR = 0;
   let sumG = 0;
@@ -316,48 +281,25 @@ function buildUniquePixels(image: ImageDataLike, sortMode: 'scan' | 'rgb' = 'rgb
     Math.floor(0.5 + sumG / totalPixels),
     Math.floor(0.5 + sumB / totalPixels),
   ];
-  let pixels = Array.from(unique.values());
-  if (sortMode === 'rgb') {
-    pixels.sort((a, b) => a.r - b.r || a.g - b.g || a.b - b.b);
-  }
-  return { pixels, mean };
+  return { pixels: Array.from(unique.values()), mean };
 }
 
-function hasTransparentPixels(image: ImageDataLike): boolean {
-  for (let i = 3; i < image.data.length; i += 4) {
-    if (image.data[i]! < ALPHA_THRESHOLD) return true;
-  }
-  return false;
-}
-
-function chooseMaxCoveragePalette(uniquePixels: UniquePixel[], count: number, mean: RGB, seedPalette: RGB[] = []): RGB[] {
+function chooseMaxCoveragePalette(uniquePixels: UniquePixel[], count: number, mean: RGB): RGB[] {
   if (uniquePixels.length === 0) return [];
-  const palette: RGB[] = [...seedPalette];
-  let currentCenter = seedPalette.length > 0 ? seedPalette[seedPalette.length - 1]! : mean;
+  const palette: RGB[] = [];
+  let currentCenter: RGB = mean;
 
-  for (const seed of seedPalette) {
-    for (const pixel of uniquePixels) {
-      const nextDistance = distanceSq([pixel.r, pixel.g, pixel.b], seed);
-      if (nextDistance < pixel.nearestDistance) {
-        pixel.nearestDistance = nextDistance;
-      }
-    }
-  }
-
-  for (let paletteIndex = seedPalette.length; paletteIndex < count && paletteIndex < uniquePixels.length; paletteIndex++) {
+  for (let paletteIndex = 0; paletteIndex < count && paletteIndex < uniquePixels.length; paletteIndex++) {
     let furthest: UniquePixel | null = null;
     let furthestDistance = -1;
-    const forceReplace = paletteIndex === 1 && seedPalette.length === 0;
+    const forceReplace = paletteIndex === 1;
 
     for (const pixel of uniquePixels) {
       const nextDistance = distanceSq([pixel.r, pixel.g, pixel.b], currentCenter);
       if (forceReplace || nextDistance < pixel.nearestDistance) {
         pixel.nearestDistance = nextDistance;
       }
-      if (
-        pixel.nearestDistance > furthestDistance ||
-        (pixel.nearestDistance === furthestDistance && furthest && pixel.key < furthest.key)
-      ) {
+      if (pixel.nearestDistance > furthestDistance) {
         furthestDistance = pixel.nearestDistance;
         furthest = pixel;
       }
@@ -372,20 +314,9 @@ function chooseMaxCoveragePalette(uniquePixels: UniquePixel[], count: number, me
 }
 
 export function paletteImageMaxCoverage(image: ImageDataLike, numColors = 16): ImageDataLike {
-  return paletteImageMaxCoverageWithOptions(image, numColors, false);
-}
-
-export function paletteImageMaxCoverageWithOptions(
-  image: ImageDataLike,
-  numColors = 16,
-  seedTransparentBackground = false
-): ImageDataLike {
   const imageRgb = clampAlpha(image, 'rgba');
-  const { pixels, mean } = buildUniquePixels(imageRgb, seedTransparentBackground ? 'scan' : 'rgb');
-  const seedPalette = seedTransparentBackground && hasTransparentPixels(image)
-    ? [pickBackgroundColor(topOpaqueColors(image))]
-    : [];
-  const palette = chooseMaxCoveragePalette(pixels, numColors, mean, seedPalette);
+  const { pixels, mean } = buildUniquePixels(imageRgb);
+  const palette = chooseMaxCoveragePalette(pixels, numColors, mean);
   const out = new Uint8ClampedArray(imageRgb.data);
 
   for (let i = 0; i < out.length; i += 4) {
