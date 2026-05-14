@@ -1,6 +1,6 @@
 # proper-pixel-art-ts
 
-TypeScript port of [`KennethJAllen/proper-pixel-art`](https://github.com/KennethJAllen/proper-pixel-art) for browser and worker runtimes.
+Node-first TypeScript port of [`KennethJAllen/proper-pixel-art`](https://github.com/KennethJAllen/proper-pixel-art).
 
 Current baseline tracks upstream commit `93945ff`.
 
@@ -9,7 +9,7 @@ Current baseline tracks upstream commit `93945ff`.
 - mirror upstream module structure: `utils`, `colors`, `mesh`, `pixelate`
 - keep browser-first APIs over `ImageData`
 - support OpenCV.js through injection or script loading
-- support both browser and Node package consumption
+- support Node package consumption first
 - preserve upstream behavior before adding extra features
 
 ## Current scope
@@ -17,13 +17,17 @@ Current baseline tracks upstream commit `93945ff`.
 - upstream-style mesh detection and cell sampling pipeline
 - transparency handling and dominant-color logic
 - built-in quantized path using `image-q`, plus pluggable quantizer override
-- OpenCV.js loader helper for browser and Node entrypoints
+- OpenCV loader helper for Node entrypoints
 - Vitest coverage for colors, mesh helpers, and pixelate/downsample flow
 
 ## Remaining work
 
 - fixture parity against the full upstream asset set
 - packaging polish and CI
+
+## Current caveat
+
+The Node package builds, imports, initializes OpenCV, and passes unit tests, but it does **not** yet match the upstream Python fixture outputs exactly. Use it as an active port, not as a verified drop-in equivalent.
 
 ## Development
 
@@ -50,9 +54,9 @@ const result = await pixelate(inputImageData, {
 });
 ```
 
-In Node, `loadOpenCv()` falls back to `loadOpenCvNode()`, which compiles the WASM runtime via `@opencvjs/node` (listed as an optional dependency — install it only if you need the Node loader). In browsers, it injects the OpenCV.js script tag (default `https://docs.opencv.org/4.x/opencv.js`) and waits for `onRuntimeInitialized`.
+In Node, `loadOpenCv()` falls back to `loadOpenCvNode()`, which initializes the runtime via `@opencvjs/node` (listed as an optional dependency — install it only if you need the Node loader).
 
 ## Entry points
 
-- `proper-pixel-art-ts` → `dist/index.js`. The ESM source you want bundlers (Vite, webpack, esbuild, rollup) to resolve. `@opencvjs/node` is loaded via an opaque dynamic import, so browser bundles never pull in its WASM blob.
-- `proper-pixel-art-ts/browser` → `dist/browser.js`. A prebundled, dependency-inlined ESM (~120 KB) for direct `<script type="module">` use without a bundler.
+- `proper-pixel-art-ts` → `dist/node.js`. Supported Node-first surface.
+- `proper-pixel-art-ts/browser` → `dist/browser.js`. Experimental browser-oriented bundle/export surface.

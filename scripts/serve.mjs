@@ -1,8 +1,9 @@
 import { createReadStream, existsSync, statSync } from 'node:fs';
-import { extname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import http from 'node:http';
 
-const root = '/workspace/ppa-ts';
+const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const port = 4173;
 
 const MIME = {

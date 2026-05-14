@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { PNG } from 'pngjs';
-import { pixelate, computeMesh, loadOpenCvNode, createImageData } from '../dist/index.js';
+import { pixelate, computeMesh, loadOpenCvNode, createImageData } from '../dist/node.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const root = resolve(__dirname, '..');

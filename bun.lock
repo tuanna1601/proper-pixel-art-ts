@@ -4,9 +4,6 @@
   "workspaces": {
     "": {
       "name": "proper-pixel-art-ts",
-      "dependencies": {
-        "image-q": "^4.0.0",
-      },
       "devDependencies": {
         "@playwright/test": "^1.59.1",
         "jpeg-js": "^0.4.4",
@@ -15,7 +12,7 @@
         "vitest": "^3.2.4",
       },
       "optionalDependencies": {
-        "@opencvjs/node": "^4.13.0-release.1",
+        "@opencvjs/node": "4.12.0-release.1",
       },
     },
   },
@@ -74,9 +71,9 @@
 
     "@jridgewell/sourcemap-codec": ["@jridgewell/sourcemap-codec@1.5.5", "", {}, "sha512-cYQ9310grqxueWbl+WuIUIaiUaDcj7WOq5fVhEljNVgRfOUhY9fy2zTvfoqWsnebh8Sl70VScFbICvJnLKB0Og=="],
 
-    "@opencvjs/node": ["@opencvjs/node@4.13.0-release.1", "", { "dependencies": { "@opencvjs/types": "4.13.0-release.1" } }, "sha512-8DdKofXk6EhqWizUx2B+9eC2c014XR3cqPQm2MElK816JvbuVZ37uEp5wn4D5J/3a8qLod5BR0nnXr0mtUE0AQ=="],
+    "@opencvjs/node": ["@opencvjs/node@4.12.0-release.1", "", { "dependencies": { "@opencvjs/types": "4.12.0-release.1" } }, "sha512-JZanjcTwozvV6RcadrMGqrSrrkesv37J4/fcl0S8yKCjlf8vxxWY92AVVFoHsaoNTjYM8+zUggp9oRYAsb49rw=="],
 
-    "@opencvjs/types": ["@opencvjs/types@4.13.0-release.1", "", {}, "sha512-HipuX/QrafzIjTPoTwnrgYkk3VUEpwLxmuekdwdnud0vvqyxUhMPmEX+a3dHglNkHhgkpKY22WFLHm0LItG6Mg=="],
+    "@opencvjs/types": ["@opencvjs/types@4.12.0-release.1", "", {}, "sha512-QV4bHSQXKgpenS42yVAFgNVDV9wK6rWkHn/BZbM8K5yHMfUQGpNPKAp6dPb3IvC6aopPylhkd+xP7HbkSZtpDg=="],
 
     "@playwright/test": ["@playwright/test@1.60.0", "", { "dependencies": { "playwright": "1.60.0" }, "bin": { "playwright": "cli.js" } }, "sha512-O71yZIbAh/PxDMNGns37GHBIfrVkEVyn+AXyIa5dOTfb4/xNvRWV+Vv/NMbNCtODB/pO7vLlF2OTmMVLhmr7Ag=="],
 
@@ -175,8 +172,6 @@
     "fdir": ["fdir@6.5.0", "", { "peerDependencies": { "picomatch": "^3 || ^4" }, "optionalPeers": ["picomatch"] }, "sha512-tIbYtZbucOs0BRGqPJkshJUYdL+SDH7dVM8gjy+ERp3WAUjLEFJE+02kanyHtwjWOnwrKYBiwAmM0p4kLJAnXg=="],
 
     "fsevents": ["fsevents@2.3.2", "", { "os": "darwin" }, "sha512-xiqMQR4xAeHTuB9uWm+fFRcIOgKBMiOBP+eXiyT7jsgVCq1bkVygt00oASowB7EdtpOHaaPgKt812P9ab+DDKA=="],
-
-    "image-q": ["image-q@4.0.0", "", { "dependencies": { "@types/node": "16.9.1" } }, "sha512-PfJGVgIfKQJuq3s0tTDOKtztksibuUEbJQIYT3by6wctQo+Rdlh7ef4evJ5NCdxY4CfMbvFkocEwbl4BF8RlJw=="],
 
     "jpeg-js": ["jpeg-js@0.4.4", "", {}, "sha512-WZzeDOEtTOBK4Mdsar0IqEU5sMr3vSV2RqkAIzUEV2BHnUfKGyswWFPFwK5EeDo93K3FohSHbLAjj0s1Wzd+dg=="],
 

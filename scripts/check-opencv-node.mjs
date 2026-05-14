@@ -1,4 +1,4 @@
-import { loadOpenCvNode } from '../dist/index.js';
+import { loadOpenCvNode } from '../dist/node.js';
 const started = Date.now();
 const timeout = new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 30000));
 try {

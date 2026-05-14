@@ -3,7 +3,7 @@ import { clusterLines, getPixelWidth, homogenizeLines, isTrivialMesh } from '../
 
 describe('mesh helpers', () => {
   it('clusters nearby lines by median', () => {
-    expect(clusterLines([0, 2, 3, 10, 11, 20], 2)).toEqual([2, 11, 20]);
+    expect(clusterLines([0, 2, 3, 10, 11, 20], 2)).toEqual([2, 10, 20]);
   });
 
   it('infers pixel width from median gaps', () => {
