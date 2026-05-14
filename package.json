@@ -1,7 +1,7 @@
 {
   "name": "proper-pixel-art-ts",
   "author": "Tuan Nguyen <tuanna1601@gmail.com>",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Node-first TypeScript port of KennethJAllen/proper-pixel-art.",
   "license": "MIT",
   "repository": {
